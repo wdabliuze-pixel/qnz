@@ -33,6 +33,28 @@ const avatarByOrder = new Map(
   avatarAssets.map(({ order, source }) => [order, source] as const),
 );
 
+const musicModules = import.meta.glob<string>(
+  "./musics/*.{mp3,mp4,mov}",
+  { eager: true, query: "?url", import: "default" },
+);
+
+const musicAssets = Object.entries(musicModules)
+  .flatMap(([path, source]) => {
+    const fileName = path.split("/").at(-1) ?? "";
+    const match = /^(\d+)\.(?:mp3|mp4|mov)$/i.exec(fileName);
+
+    if (!match) {
+      return [];
+    }
+
+    return [{ order: Number(match[1]), fileName, source }];
+  })
+  .sort((left, right) => left.order - right.order || left.fileName.localeCompare(right.fileName));
+
+const musicByOrder = new Map(
+  musicAssets.map(({ order, fileName, source }) => [order, { fileName, source }] as const),
+);
+
 const app = document.querySelector<HTMLDivElement>("#app");
 
 if (!app) {
@@ -41,7 +63,7 @@ if (!app) {
 
 const main = document.createElement("main");
 main.className = "app-shell";
-main.setAttribute("aria-label", "Coleção AFTER");
+main.setAttribute("aria-label", "Site oficial da Quinze.");
 app.append(main);
 
 function buildAvatar(name: string, index: number, size: "card" | "detail" = "card") {
@@ -64,7 +86,46 @@ function buildAvatar(name: string, index: number, size: "card" | "detail" = "car
   return disc;
 }
 
+function buildMusic(order: number) {
+  const track = musicByOrder.get(order);
+
+  if (!track) {
+    return null;
+  }
+
+  const media = track.fileName.toLowerCase().endsWith(".mp3")
+    ? document.createElement("audio")
+    : document.createElement("video");
+  media.className = "background-music";
+  media.src = track.source;
+  media.autoplay = true;
+  media.loop = true;
+  media.preload = "auto";
+  media.volume = 0.10;
+  media.setAttribute("aria-hidden", "true");
+  media.tabIndex = -1;
+
+  if (media instanceof HTMLVideoElement) {
+    media.playsInline = true;
+  }
+
+  const status = document.createElement("span");
+  status.className = "music-status";
+  status.setAttribute("role", "status");
+
+  media.addEventListener("error", () => {
+    status.textContent = "Não foi possível carregar esta música.";
+  });
+
+  return { media, status };
+}
+
+function stopBackgroundMusic() {
+  main.querySelector<HTMLMediaElement>(".background-music")?.pause();
+}
+
 function renderCollection() {
+  stopBackgroundMusic();
   main.classList.remove("profile-view");
 
   const pageBadge = document.createElement("span");
@@ -79,7 +140,7 @@ function renderCollection() {
   collection.forEach((name, index) => {
     const link = document.createElement("a");
     link.className = "tile-link";
-    link.href = `#perfil-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+    link.href = `#profile-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
     link.setAttribute("aria-label", `Abrir perfil de ${name}`);
 
     const tile = document.createElement("article");
@@ -107,6 +168,7 @@ function renderCollection() {
 }
 
 function renderProfile(name: string, index: number) {
+  stopBackgroundMusic();
   main.classList.add("profile-view");
 
   const profilePage = document.createElement("section");
@@ -120,6 +182,8 @@ function renderProfile(name: string, index: number) {
   heading.className = "profile-name";
   heading.textContent = name;
 
+  const music = buildMusic(index + 1);
+
   const backButton = document.createElement("button");
   backButton.type = "button";
   backButton.className = "back-button";
@@ -129,8 +193,18 @@ function renderProfile(name: string, index: number) {
   });
 
   profileCard.append(disc, heading);
+  if (music) {
+    profilePage.append(music.media);
+    profileCard.append(music.status);
+  }
   profilePage.append(backButton, profileCard);
   main.replaceChildren(profilePage);
+
+  if (music) {
+    void music.media.play().catch(() => {
+      music.status.textContent = "O navegador bloqueou a reprodução automática.";
+    });
+  }
 }
 
 function route() {
@@ -143,7 +217,7 @@ function route() {
 
   const selectedIndex = collection.findIndex((name) => {
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    return `perfil-${slug}` === hash;
+    return `profile-${slug}` === hash;
   });
 
   if (selectedIndex >= 0) {

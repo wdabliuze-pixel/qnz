@@ -145,6 +145,15 @@ main.profile-view {
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
+.background-music {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  pointer-events: none;
+}
+
 .avatar {
   display: block;
   width: 100%;
@@ -180,6 +189,16 @@ main.profile-view {
   line-height: 1.1;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.music-status {
+  color: #c8c8c8;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+}
+
+.music-status:empty {
+  display: none;
 }
 
 .back-button {
